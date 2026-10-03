@@ -2,6 +2,7 @@
 tags:
   - garden
   - reference
+aliases: [earth-notes]
 updated: 2026-01-07
 ---
 # 土壤笔记

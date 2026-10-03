@@ -7,3 +7,8 @@
 .weekly-plan{background:#fff;border:1px solid #e6ebe7;border-radius:12px;padding:4px 20px}.weekly-plan>div{display:flex;align-items:flex-start;gap:17px;padding:14px 3px;border-bottom:1px solid #eef1ed}.weekly-plan>div:last-child{border-bottom:0}.weekly-plan span{color:#6da984;font-size:11px;font-weight:700;padding-top:2px}.weekly-plan p{font-size:12px;line-height:1.65;color:#3c5646;margin:0}.source-entry>span{display:block;color:#9aa89c;font-size:9px}.source-entry .missing-source{color:#a66f5d}
 
 [hidden]{display:none!important}
+
+.markdown-body pre{background:#1e3131;color:#dceae4;border-radius:9px;margin:19px 0}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:16px 0}
+.markdown-body .task-list-item-checkbox{margin-right:8px;accent-color:#278355}
+.markdown-body .external-image{display:inline-block}

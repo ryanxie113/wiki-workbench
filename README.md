@@ -2,7 +2,7 @@
 
 一个在本机运行的 Markdown 工作台。它扫描你指定的资料库，提供项目摘要、全文搜索、原文阅读、`[[wikilink]]` 跳转和可选的每日记录。默认只读，资料不会上传。
 
-目前界面为中文，适合个人资料库；它不是多用户在线服务。正文使用轻量 Markdown 渲染，复杂 Obsidian 语法可能不会完整显示。
+目前界面为中文，适合个人资料库；它不是多用户在线服务。阅读器支持常见 Markdown 的嵌套列表、任务清单、表格、代码块与图片。复杂 Obsidian 插件语法仍可能无法完整显示。
 
 ## 五分钟试用
 
@@ -39,13 +39,22 @@ npm start -- --vault /absolute/path/to/vault --content-dir wiki --daily-dir dail
 npm start -- --vault /absolute/path/to/vault --content-dir wiki --write-daily
 ```
 
-写入功能需要资料库内已有 `daily/_template.md`。目前日报编辑器采用示例中的中文 P1/P2/P3、时间线、阅读表格格式；其他日报模板仍可只读浏览。`--daily-dir` 可更改目录，`--time-zone` 使用 IANA 时区名称。运行 `npm start -- --help` 查看所有参数。
+写入功能需要资料库内已有 `daily/_template.md`。默认识别“今日计划”下的 P1/P2/P3 清单和“时间线”表格。启动时会检查模板，格式不匹配就拒绝创建日报。
+
+其他格式可通过 `--daily-format` 指定 JSON 配置，例如 [英文配置](examples/daily-format.en.json) 对应 [英文模板](examples/daily-template.en.md)：
+
+```bash
+npm start -- --vault /absolute/path/to/vault --write-daily --daily-format examples/daily-format.en.json
+```
+
+将示例模板复制到所选资料库的 `daily/_template.md` 后再启用该配置。可设置 `planHeading`、`timelineHeading` 和三个 `priorityLabels`；模板可使用 `{{date}}`、`{{week}}`、`{{weekday}}` 占位符。时间线必须是“时间、内容、项目”三列表格。`--daily-dir` 可更改目录，`--time-zone` 使用 IANA 时区名称。运行 `npm start -- --help` 查看所有参数。
 
 ## 文件与隐私边界
 
 - 服务只监听 `127.0.0.1`，不会把资料传到远端。不要直接暴露到公网。
 - 默认不写文件。`--write-daily` 只允许修改指定日报目录中的当日文件；其他 Markdown、原始资料和索引保持只读。
 - 扫描跳过隐藏目录、`node_modules`、符号链接、超过 3 MB 的 Markdown 文件，以及 `--exclude` 指定的路径。API 读取会检查文件真实路径是否仍在资料库内。
+- 本地 PNG、JPEG、GIF、WebP、AVIF 图片可在原文中显示，单文件上限 10 MB。远端图片只提供手动打开的链接；SVG 不以内嵌图片提供。
 - 页面上的日期来自文档记录，不代表项目今天仍在推进。打开原文核对后再采纳任务。
 
 ## 开发
