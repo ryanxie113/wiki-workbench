@@ -57,4 +57,8 @@ npm run dev
 
 测试仅使用 `examples/demo-vault/` 和临时生成的虚构文件，不依赖任何私人 Wiki。贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全报告方式见 [SECURITY.md](SECURITY.md)。
 
-本仓库的源码与样例库应与任何私人资料库分开管理。发布前请确认源码权属、许可证和仓库内容；不要将私人资料库或其 Git 历史复制进公开仓库。
+本仓库的源码与样例库应与任何私人资料库分开管理。公开远程仓库时，只推送本目录的独立 Git 历史，不要导入私人资料库或其提交历史。
+
+## 许可证
+
+代码采用 [MIT 许可证](LICENSE)。`package.json` 保留 `private: true`，只表示暂不向 npm 发布包，不影响源码仓库的开源许可。

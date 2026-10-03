@@ -2,6 +2,8 @@
   "name": "wiki-workbench",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "description": "Local-first workbench for Markdown knowledge folders",
   "type": "module",
   "scripts": {
     "dev": "node --watch server.mjs",
