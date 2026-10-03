@@ -62,6 +62,41 @@ test('重名页面需路径消歧；同目录页面优先匹配', () => {
   assert.doesNotMatch(html, /href="javascript:/);
 });
 
+test('章节、显式相对路径和资料库根路径链接定位到正确页面', () => {
+  const paths = ['readme.md', 'a/current.md', 'a/readme.md', 'b/readme.md', 'notes/soil-notes.md'];
+  const library = {
+    byPath: new Map(paths.map(value => [value, {}])),
+    byId: new Map([['readme', paths.filter(value => value.endsWith('readme.md'))], ['soil-notes', ['notes/soil-notes.md']]]),
+    byAlias: new Map(),
+    pages: paths.map(value => ({ path: value }))
+  };
+  assert.equal(resolveWikiTarget('./readme', 'a/current.md', library), 'a/readme.md');
+  assert.equal(resolveWikiTarget('../b/readme', 'a/current.md', library), 'b/readme.md');
+  assert.equal(resolveWikiTarget('../../readme', 'a/current.md', library), null);
+  const page = parsePage('a/current.md', [
+    '# Current', '## Details',
+    '[[#Details]] [[#Details|本页章节]] [[./readme|同目录]]',
+    '[根目录](/readme.md) [省略后缀](../notes/soil-notes) [章节](../notes/soil-notes.md#Soil%20Samples)',
+    '[目录外](../../private.md) [网络路径](//example.com/readme.md)',
+    '![根目录图片](/assets/plot.png) ![[/assets/plot.png|Wiki 根目录图片]] ![[./assets/plot.png|同目录图片]]',
+    '![目录外图片](../../private.png)'
+  ].join('\n'));
+  const html = renderMarkdownPage(page, library);
+  assert.match(html, /href="#\/page\/a%2Fcurrent\.md\?heading=Details">Details<\/a>/);
+  assert.match(html, /href="#\/page\/a%2Fcurrent\.md\?heading=Details">本页章节<\/a>/);
+  assert.match(html, /href="#\/page\/a%2Freadme\.md">同目录<\/a>/);
+  assert.match(html, /href="#\/page\/readme\.md">根目录<\/a>/);
+  assert.match(html, /href="#\/page\/notes%2Fsoil-notes\.md">省略后缀<\/a>/);
+  assert.match(html, /href="#\/page\/notes%2Fsoil-notes\.md\?heading=Soil%20Samples">章节<\/a>/);
+  assert.match(html, /class="missing-link" aria-disabled="true">目录外<\/a>/);
+  assert.doesNotMatch(html, /href="#\/page\/private\.md"/);
+  assert.doesNotMatch(html, /href="#\/page\/example\.com/);
+  assert.match(html, /src="\/api\/asset\?path=assets%2Fplot\.png" alt="根目录图片"/);
+  assert.match(html, /src="\/api\/asset\?path=assets%2Fplot\.png" alt="Wiki 根目录图片"/);
+  assert.match(html, /src="\/api\/asset\?path=a%2Fassets%2Fplot\.png" alt="同目录图片"/);
+  assert.doesNotMatch(html, /\/api\/asset\?path=private\.png/);
+});
+
 test('图片接口只允许资料库内的普通栅格图片', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'workbench-assets-'));
   const outside = await mkdtemp(path.join(os.tmpdir(), 'workbench-outside-'));

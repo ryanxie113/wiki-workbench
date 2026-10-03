@@ -31,6 +31,8 @@ npm start -- --vault /absolute/path/to/notes
 
 任何 `.md` 文件都能搜索和阅读，不要求 YAML frontmatter 或根索引。`projects/` 内的页面自动进入项目视图；也可以用 `type: project` 标记。项目摘要从 `Goal`、`Progress`、`Next steps` 等标题提取，并始终提供原文入口。
 
+阅读器支持 `[[页面]]`、`[[页面#章节|显示文字]]`、`[[#本页章节]]`，以及普通 Markdown 的相对链接。`[[./页面]]` 和 `[[../页面]]` 按当前文件位置解析；`[页面](/notes/page.md)` 与 `![图片](/assets/image.png)` 从资料库根目录解析，普通 Markdown 页面链接可省略 `.md`。目录外路径不会打开。
+
 如果项目页或周报使用其他命名，使用 `--project-format` 指定 JSON 配置。示例配置支持 `Mission`、`Milestones`、`To deliver`、`sprint-review.md` 和 `Next week`：
 
 ```bash
