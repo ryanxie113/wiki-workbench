@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { loadLibrary, readAllowedFile, searchLibrary, safeVaultPath, parsePage, availableRepoFile } from './lib/wiki.mjs';
 import { zonedNow, parseToday, updateToday } from './lib/daily.mjs';
 import { resolveConfig } from './lib/config.mjs';
+import { hostAllowed, securityHeaders } from './lib/http.mjs';
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const config = await resolveConfig(process.argv.slice(2), process.env, appDir).catch(error => {
@@ -35,14 +36,14 @@ function librarySnapshot() {
 }
 
 function json(response, status, data) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  response.writeHead(status, { ...securityHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(data));
 }
 
 function pageCard(page) {
   return {
     path: page.path, id: page.id, title: page.title, type: page.type,
-    date: page.type === 'project' ? page.digest.progressDate : page.attributes.updated || page.attributes.created || '',
+    date: page.type === 'project' ? page.digest.progressDate || '' : page.attributes.updated || page.attributes.created || '',
     confidence: page.attributes.confidence || '', tags: page.attributes.tags || [],
     digest: page.digest || null
   };
@@ -61,6 +62,7 @@ async function requestBody(request) {
 }
 
 async function serve(request, response) {
+  if (!hostAllowed(request.headers.host, port)) return json(response, 403, { error: '请求主机不正确' });
   const url = new URL(request.url, `http://${host}:${port}`);
   if (request.method === 'GET' && url.pathname === '/api/bootstrap') {
     const library = await librarySnapshot();
@@ -123,7 +125,7 @@ async function serve(request, response) {
   const asset = assets[url.pathname];
   if (!asset) return json(response, 404, { error: '页面不存在' });
   const data = await readFile(path.join(appDir, 'public', asset[0]));
-  response.writeHead(200, { 'Content-Type': `${asset[1]}; charset=utf-8`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  response.writeHead(200, { ...securityHeaders, 'Content-Type': `${asset[1]}; charset=utf-8`, 'Cache-Control': 'no-store' });
   response.end(data);
 }
 

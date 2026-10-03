@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArguments } from '../lib/config.mjs';
+import { hostAllowed } from '../lib/http.mjs';
 import { loadLibrary, parseFrontmatter, readAllowedFile, safeVaultPath, searchLibrary } from '../lib/wiki.mjs';
 import { createTodayFromTemplate, parseToday, updateToday, zonedNow } from '../lib/daily.mjs';
 
@@ -29,15 +30,18 @@ test('任意 Markdown 目录无需 frontmatter 或根索引', async () => {
     await mkdir(path.join(directory, 'projects'));
     await mkdir(path.join(directory, 'private'));
     await writeFile(path.join(directory, 'projects', 'alpha.md'), '# Alpha\n\n## Progress\n- First milestone\n');
+    await writeFile(path.join(directory, 'projects', 'empty.md'), '# Empty project\n');
     await writeFile(path.join(directory, 'private', 'skip.md'), '# Excluded\n');
     await symlink('/etc/hosts', path.join(directory, 'outside.md'));
     const library = await loadLibrary(directory, { excludes: ['private'] });
     assert.equal(library.byPath.get('projects/alpha.md').type, 'project');
+    assert.equal(library.byPath.get('projects/empty.md').digest.progressDate, '');
     assert.equal(library.byPath.has('private/skip.md'), false);
     assert.equal(library.byPath.has('outside.md'), false);
     assert.deepEqual(library.unindexed, []);
     assert.equal(await readAllowedFile(directory, 'outside.md'), null);
     assert.equal(await readAllowedFile(directory, 'projects/alpha.md'), '# Alpha\n\n## Progress\n- First milestone\n');
+    assert.ok(searchLibrary(library, 'project').some(page => page.path === 'projects/empty.md'));
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -54,6 +58,10 @@ test('YAML 列表、路径限制和命令参数', () => {
   assert.equal(config.writeDaily, true);
   assert.deepEqual(config.excludes, ['private']);
   assert.throws(() => parseArguments(['--content-dir', '../outside'], {}, appDir));
+  assert.equal(hostAllowed('127.0.0.1:4173', 4173), true);
+  assert.equal(hostAllowed('localhost:4173', 4173), true);
+  assert.equal(hostAllowed('example.com:4173', 4173), false);
+  assert.equal(hostAllowed('127.0.0.1:9999', 4173), false);
 });
 
 test('日报默认拒绝写入；显式启用后按指定时区与模板创建', async () => {
