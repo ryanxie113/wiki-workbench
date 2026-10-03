@@ -59,8 +59,11 @@ npm start -- --vault /absolute/path/to/vault --write-daily --daily-format exampl
 
 ## 开发
 
+`npm run bench` 会在临时目录生成 600 篇虚构笔记，测量首次扫描、连续刷新和 100 次搜索；结束后自动清理。结果仅用于比较同一机器上的版本，不代表真实资料库的绝对耗时。
+
 ```bash
 npm test
+npm run bench
 npm run dev
 ```
 

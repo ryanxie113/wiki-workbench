@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, symlink, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,6 +54,41 @@ test('任意 Markdown 目录无需 frontmatter 或根索引', async () => {
     await rm(directory, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
   }
+});
+
+test('增量扫描复用未变页面，并更新新增、修改、删除的笔记和周报摘要', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-refresh-'));
+  try {
+    await mkdir(path.join(directory, 'projects'));
+    await mkdir(path.join(directory, 'insights'));
+    const projectFile = path.join(directory, 'projects/demo.md');
+    const weeklyFile = path.join(directory, 'insights/weekly-summary.md');
+    await writeFile(projectFile, '# Demo\n\n## Goal\nTrack garden samples.\n\n## Progress\n- First result\n');
+    await writeFile(weeklyFile, '---\ntype: insight\nupdated: 2026-02-01\n---\n# Weekly\n\n## 下周计划\n- Prepare visit\n\n### demo\n- Weekly update\n');
+    const first = await loadLibrary(directory);
+    const second = await loadLibrary(directory, {}, first);
+    assert.equal(second.byPath.get('insights/weekly-summary.md'), first.byPath.get('insights/weekly-summary.md'));
+    assert.notEqual(second.byPath.get('projects/demo.md'), first.byPath.get('projects/demo.md'));
+    assert.deepEqual(second.byPath.get('projects/demo.md').digest, first.byPath.get('projects/demo.md').digest);
+    assert.equal(second.byPath.get('projects/demo.md').digest.progress[0], 'Weekly update');
+
+    await writeFile(weeklyFile, '---\ntype: insight\nupdated: 2026-02-02\n---\n# Weekly\n\n## 下周计划\n- Prepare visit\n\n### demo\n- Revised weekly update\n');
+    await writeFile(path.join(directory, 'projects/new.md'), '# New\n\n## Goal\nNew project\n');
+    const third = await loadLibrary(directory, {}, second);
+    assert.equal(third.byPath.get('projects/demo.md').digest.progress[0], 'Revised weekly update');
+    assert.ok(third.byPath.has('projects/new.md'));
+    assert.ok(searchLibrary(third, 'revised').some(page => page.path === 'insights/weekly-summary.md'));
+
+    await writeFile(projectFile, '# Demo\n\n## Goal\nTrack seedlings and flowers.\n');
+    await unlink(weeklyFile);
+    const fourth = await loadLibrary(directory, {}, third);
+    assert.equal(fourth.byPath.has('insights/weekly-summary.md'), false);
+    assert.equal(fourth.byPath.get('projects/demo.md').digest.goal, 'Track seedlings and flowers.');
+    assert.ok(searchLibrary(fourth, 'seedlings').some(page => page.path === 'projects/demo.md'));
+    assert.equal(searchLibrary(fourth, 'revised').length, 0);
+    const differentConfig = await loadLibrary(directory, { contentDir: 'projects', indexPath: 'projects/demo.md' }, fourth);
+    assert.equal(differentConfig.byPath.get('projects/demo.md').type, 'index');
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test('YAML 列表、路径限制和命令参数', () => {

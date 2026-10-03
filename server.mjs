@@ -27,7 +27,7 @@ let pendingLibrary = null;
 function librarySnapshot() {
   if (snapshot && Date.now() < refreshAfter) return Promise.resolve(snapshot);
   if (!pendingLibrary) {
-    pendingLibrary = loadLibrary(root, config).then(library => {
+    pendingLibrary = loadLibrary(root, config, snapshot).then(library => {
       snapshot = library;
       refreshAfter = Date.now() + 1500;
       return library;
