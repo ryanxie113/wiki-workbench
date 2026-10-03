@@ -1,0 +1,7 @@
+{
+  "goalHeadings": ["Mission", "Goal"],
+  "progressHeadings": ["Milestones", "Progress"],
+  "actionHeadings": ["To deliver", "Next steps"],
+  "weeklySummaryNames": ["sprint-review", "weekly-summary"],
+  "weeklyPlanHeadings": ["Next week", "下周计划"]
+}

@@ -31,6 +31,14 @@ npm start -- --vault /absolute/path/to/notes
 
 任何 `.md` 文件都能搜索和阅读，不要求 YAML frontmatter 或根索引。`projects/` 内的页面自动进入项目视图；也可以用 `type: project` 标记。项目摘要从 `Goal`、`Progress`、`Next steps` 等标题提取，并始终提供原文入口。
 
+如果项目页或周报使用其他命名，使用 `--project-format` 指定 JSON 配置。示例配置支持 `Mission`、`Milestones`、`To deliver`、`sprint-review.md` 和 `Next week`：
+
+```bash
+npm start -- --vault /absolute/path/to/notes --project-format examples/project-format.en.json
+```
+
+[项目格式示例](examples/project-format.en.json)中的五个数组分别指定项目目标标题、进展标题、后续事项标题、周报文件名片段和周报计划标题。目标与周报计划要求标题完全匹配；进展、后续事项及周报文件名允许包含配置词，匹配时不区分大小写。各数组单独替换默认值；需要兼容多种写法时，把它们都列入数组。带日期的项目章节仍优先作为进展，较新的周报记录可覆盖项目进展摘要，所有摘要保留原文来源。
+
 ## 适配结构化 Wiki
 
 如果资料库用 `wiki/` 保存正文、`daily/` 保存日报、根目录 `index.md` 保存索引，可以这样启动：

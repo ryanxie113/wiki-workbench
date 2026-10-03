@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArguments, resolveConfig } from '../lib/config.mjs';
 import { normalizeDailyFormat } from '../lib/daily-format.mjs';
+import { normalizeProjectFormat } from '../lib/project-format.mjs';
 import { hostAllowed } from '../lib/http.mjs';
 import { loadLibrary, parseFrontmatter, readAllowedFile, safeVaultPath, searchLibrary } from '../lib/wiki.mjs';
 import { createTodayFromTemplate, parseToday, updateToday, zonedNow } from '../lib/daily.mjs';
@@ -112,6 +113,53 @@ test('增量扫描复用未变页面，并更新新增、修改、删除的笔�
     const differentConfig = await loadLibrary(directory, { contentDir: 'projects', indexPath: 'projects/demo.md' }, fourth);
     assert.equal(differentConfig.byPath.get('projects/demo.md').type, 'index');
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('项目和周报标题可配置，修改规则后重算未变项目', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-project-format-'));
+  try {
+    await mkdir(path.join(directory, 'projects'));
+    await mkdir(path.join(directory, 'insights'));
+    await writeFile(path.join(directory, 'projects/demo.md'), '---\nupdated: 2026-02-01\n---\n# Demo\n\n## Mission\nGrow healthy seedlings.\n\n## Milestones\n- Soil samples recorded\n\n## To deliver\n- Check moisture\n');
+    await writeFile(path.join(directory, 'insights/sprint-review.md'), '---\ntype: insight\nupdated: 2026-02-02\n---\n# Sprint review\n\n## Next week\n- Prepare garden visit\n\n### demo\n- New growth observed\n');
+    const initial = await loadLibrary(directory);
+    assert.equal(initial.byPath.get('projects/demo.md').digest.goal, '');
+    assert.deepEqual(initial.byPath.get('projects/demo.md').digest.action, []);
+    assert.equal(initial.latestWeeklyPlan, null);
+
+    const formatPath = path.join(directory, 'project-format.json');
+    const input = {
+      goalHeadings: ['Mission'], progressHeadings: ['Milestones'], actionHeadings: ['To deliver'],
+      weeklySummaryNames: ['sprint-review'], weeklyPlanHeadings: ['Next week']
+    };
+    await writeFile(formatPath, JSON.stringify(input));
+    const config = await resolveConfig(['--vault', directory, '--project-format', formatPath], {}, appDir);
+    assert.deepEqual(config.projectFormat, input);
+    const custom = await loadLibrary(directory, config, initial);
+    const digest = custom.byPath.get('projects/demo.md').digest;
+    assert.equal(digest.goal, 'Grow healthy seedlings.');
+    assert.equal(digest.goalEvidence.line, 7);
+    assert.deepEqual(digest.action, ['Check moisture']);
+    assert.equal(digest.actionEvidence[0].line, 13);
+    assert.deepEqual(custom.baseDigests.get('projects/demo.md').progress, ['Soil samples recorded']);
+    assert.deepEqual(digest.progress, ['New growth observed']);
+    assert.equal(digest.progressEvidence[0].sourcePath, 'insights/sprint-review.md');
+    assert.equal(digest.progressEvidence[0].line, 11);
+    assert.equal(custom.latestWeeklyPlan.heading, 'Next week');
+    assert.notEqual(custom.cacheKey, initial.cacheKey);
+    assert.notEqual(custom.byPath.get('projects/demo.md').digest, initial.byPath.get('projects/demo.md').digest);
+    const repeated = await loadLibrary(directory, config, custom);
+    assert.equal(repeated.byPath.get('insights/sprint-review.md'), custom.byPath.get('insights/sprint-review.md'));
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('项目格式配置拒绝错误字段和重复标题', async () => {
+  assert.throws(() => normalizeProjectFormat({ unknown: ['Mission'] }), /未知项目格式字段/);
+  assert.throws(() => normalizeProjectFormat({ goalHeadings: [] }), /goalHeadings/);
+  assert.throws(() => normalizeProjectFormat({ goalHeadings: null }), /goalHeadings/);
+  assert.throws(() => normalizeProjectFormat({ actionHeadings: ['TODO', 'todo'] }), /不能重复/);
+  assert.throws(() => normalizeProjectFormat({ progressHeadings: ['Line\nbreak'] }), /progressHeadings/);
+  await assert.rejects(resolveConfig(['--vault', demoVault, '--project-format', 'missing-project-format.json'], {}, appDir), /项目格式配置无法读取/);
 });
 
 test('YAML 列表、路径限制和命令参数', () => {
