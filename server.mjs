@@ -24,8 +24,9 @@ let snapshot = null;
 let refreshAfter = 0;
 let pendingLibrary = null;
 
-function librarySnapshot() {
-  if (snapshot && Date.now() < refreshAfter) return Promise.resolve(snapshot);
+function librarySnapshot(force = false) {
+  if (force && pendingLibrary) return pendingLibrary.then(() => librarySnapshot(true));
+  if (!force && snapshot && Date.now() < refreshAfter) return Promise.resolve(snapshot);
   if (!pendingLibrary) {
     pendingLibrary = loadLibrary(root, config, snapshot).then(library => {
       snapshot = library;
@@ -130,7 +131,7 @@ async function serve(request, response) {
     const origin = request.headers.origin;
     if (origin && ![`http://${host}:${port}`, `http://localhost:${port}`].includes(origin)) return json(response, 403, { error: '请求来源不正确' });
     const payload = await requestBody(request);
-    const library = await librarySnapshot();
+    const library = await librarySnapshot(true);
     const today = await updateToday(root, payload.action, payload, library, config);
     refreshAfter = 0;
     return json(response, 200, { today });

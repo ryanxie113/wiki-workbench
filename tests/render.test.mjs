@@ -32,15 +32,18 @@ test('常见 Markdown 正确呈现，危险 HTML 与远端图片不会自动执�
   assert.match(html, /href="#\/page\/notes%2Fsoil-notes\.md">别名<\/a>/);
   assert.match(html, /href="#\/page\/projects%2Fgarden-observer\.md"/);
   assert.match(html, /<ul class="contains-task-list">/);
-  assert.match(html, /<ul>\s*<li>嵌套事项<\/li>/);
+  assert.match(html, /<ul>\s*<li data-line="6" data-line-end="\d+">嵌套事项<\/li>/);
   assert.match(html, /a \| b/);
-  assert.match(html, /<div class="table-wrap"><table>/);
+  assert.match(html, /<div class="table-wrap"><table data-line="8" data-line-end="10">/);
   assert.match(html, /src="\/api\/asset\?path=assets%2Fplot\.png"/);
   assert.match(html, /alt="嵌入图片"/);
   assert.match(html, /class="external-image"/);
   assert.doesNotMatch(html, /<img[^>]+example\.com/);
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>/);
+  const sourceHtml = renderMarkdownPage(library.byPath.get('projects/garden-observer.md'), library);
+  assert.match(sourceHtml, /<h2 data-heading="Next steps" data-line="18" data-line-end="18">/);
+  assert.match(sourceHtml, /<li data-line="19" data-line-end="\d+">/);
 });
 
 test('重名页面需路径消歧；同目录页面优先匹配', () => {

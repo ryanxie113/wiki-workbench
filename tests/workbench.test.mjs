@@ -19,6 +19,10 @@ test('虚构资料库可独立运行：项目摘要、来源、搜索和索引',
   assert.equal(project.digest.progressDate, '2026-01-08');
   assert.equal(project.digest.progressSourcePath, project.path);
   assert.match(project.digest.action.join(' '), /浇水计划/);
+  assert.equal(project.digest.goalEvidence.line, 12);
+  assert.deepEqual(project.digest.progressEvidence.map(item => item.line), [15, 16]);
+  assert.equal(project.digest.actionEvidence[0].line, 19);
+  assert.equal(project.digest.actionEvidence[0].kind, 'project');
   assert.deepEqual(project.attributes.sources, ['notes/soil-notes.md']);
   assert.deepEqual(library.unindexed, []);
   assert.ok(searchLibrary(library, '土壤').some(page => page.path === 'notes/soil-notes.md'));
@@ -56,6 +60,22 @@ test('任意 Markdown 目录无需 frontmatter 或根索引', async () => {
   }
 });
 
+test('索引补充的项目目标保留索引文件和行号', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-index-source-'));
+  try {
+    await mkdir(path.join(directory, 'projects'));
+    await writeFile(path.join(directory, 'projects/demo.md'), '# Demo\n\n## Next steps\n- Review notes\n');
+    await writeFile(path.join(directory, 'index.md'), '---\nupdated: 2026-02-01\n---\n# Index\n- [[demo]] — Goal from index\n');
+    const library = await loadLibrary(directory);
+    const digest = library.byPath.get('projects/demo.md').digest;
+    assert.equal(digest.goal, 'Goal from index');
+    assert.deepEqual(digest.goalEvidence, {
+      text: 'Goal from index', sourcePath: 'index.md', line: 5,
+      date: '2026-02-01', kind: 'index', heading: ''
+    });
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test('增量扫描复用未变页面，并更新新增、修改、删除的笔记和周报摘要', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-refresh-'));
   try {
@@ -71,6 +91,9 @@ test('增量扫描复用未变页面，并更新新增、修改、删除的笔�
     assert.notEqual(second.byPath.get('projects/demo.md'), first.byPath.get('projects/demo.md'));
     assert.deepEqual(second.byPath.get('projects/demo.md').digest, first.byPath.get('projects/demo.md').digest);
     assert.equal(second.byPath.get('projects/demo.md').digest.progress[0], 'Weekly update');
+    assert.equal(second.byPath.get('projects/demo.md').digest.progressEvidence[0].kind, 'weekly');
+    assert.equal(second.byPath.get('projects/demo.md').digest.progressEvidence[0].sourcePath, 'insights/weekly-summary.md');
+    assert.equal(second.byPath.get('projects/demo.md').digest.progressEvidence[0].line, 11);
 
     await writeFile(weeklyFile, '---\ntype: insight\nupdated: 2026-02-02\n---\n# Weekly\n\n## 下周计划\n- Prepare visit\n\n### demo\n- Revised weekly update\n');
     await writeFile(path.join(directory, 'projects/new.md'), '# New\n\n## Goal\nNew project\n');
@@ -114,7 +137,7 @@ test('YAML 列表、路径限制和命令参数', () => {
 test('日报默认拒绝写入；显式启用后按指定时区与模板创建', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-daily-'));
   const projectPath = 'projects/demo.md';
-  const library = { byPath: new Map([[projectPath, { type: 'project', id: 'demo', digest: { action: ['观察土壤'] } }]]) };
+  const library = { byPath: new Map([[projectPath, { type: 'project', id: 'demo', path: projectPath, digest: { action: ['观察土壤'], actionEvidence: [{ text: '观察土壤', sourcePath: projectPath, line: 9 }] } }]]) };
   const config = { dailyDir: 'daily', timeZone: 'UTC', writeDaily: true };
   try {
     await mkdir(path.join(directory, 'daily'));
@@ -125,12 +148,18 @@ test('日报默认拒绝写入；显式启用后按指定时区与模板创建',
     assert.equal(today.exists, true);
     assert.equal(today.plans.length, 3);
     assert.match(createTodayFromTemplate(template, '2026-10-03'), /week: W40/);
-    await updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤' }, library, config);
-    const updated = await updateToday(directory, 'record', { projectPath, text: '已记录观察结果' }, library, config);
-    assert.equal(updated.plans[0].text, '观察土壤 [[demo]]');
-    assert.equal(updated.records[0].tag, '[[demo]]');
+    await assert.rejects(updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 10 }, library, config), /项目记录已变化/);
+    await updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 9 }, library, config);
     const date = zonedNow('UTC').date;
-    const markdown = await readFile(path.join(directory, 'daily', `${date}.md`), 'utf8');
+    const dailyFile = path.join(directory, 'daily', `${date}.md`);
+    const beforeRejectedReplace = await readFile(dailyFile, 'utf8');
+    await assert.rejects(updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 9 }, library, config), /已有内容/);
+    assert.equal(await readFile(dailyFile, 'utf8'), beforeRejectedReplace);
+    await updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 9, replace: true }, library, config);
+    const updated = await updateToday(directory, 'record', { projectPath, text: '已记录观察结果' }, library, config);
+    assert.equal(updated.plans[0].text, '观察土壤 [[projects/demo]]');
+    assert.equal(updated.records[0].tag, '[[projects/demo]]');
+    const markdown = await readFile(dailyFile, 'utf8');
     assert.equal(parseToday(markdown, date).records.length, 1);
     if (process.platform !== 'win32') assert.equal((await stat(path.join(directory, 'daily', `${date}.md`))).mode & 0o777, 0o600);
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -139,7 +168,7 @@ test('日报默认拒绝写入；显式启用后按指定时区与模板创建',
 test('自定义日报标题和优先级可写入，不依赖固定的阅读段落', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-custom-daily-'));
   const projectPath = 'projects/demo.md';
-  const library = { byPath: new Map([[projectPath, { type: 'project', id: 'demo', digest: { action: ['Check samples'] } }]]) };
+  const library = { byPath: new Map([[projectPath, { type: 'project', id: 'demo', path: projectPath, digest: { action: ['Check samples'], actionEvidence: [{ text: 'Check samples', sourcePath: projectPath, line: 9 }] } }]]) };
   try {
     await mkdir(path.join(directory, 'daily'));
     await writeFile(path.join(directory, 'daily/_template.md'), '# Invalid template\n');
@@ -152,12 +181,12 @@ test('自定义日报标题和优先级可写入，不依赖固定的阅读段�
     assert.deepEqual(config.dailyFormat.priorityLabels, ['High', 'Medium', 'Low']);
     const initialized = await updateToday(directory, 'init', {}, library, config);
     assert.deepEqual(initialized.plans.map(plan => plan.label), ['High', 'Medium', 'Low']);
-    await updateToday(directory, 'plan', { priority: 1, projectPath, text: 'Check samples' }, library, config);
+    await updateToday(directory, 'plan', { priority: 1, projectPath, text: 'Check samples', sourceLine: 9 }, library, config);
     const updated = await updateToday(directory, 'record', { projectPath, text: 'Reviewed three entries' }, library, config);
-    assert.equal(updated.plans[0].text, 'Check samples [[demo]]');
+    assert.equal(updated.plans[0].text, 'Check samples [[projects/demo]]');
     assert.equal(updated.records[0].text, 'Reviewed three entries');
     const markdown = await readFile(path.join(directory, 'daily', `${zonedNow('UTC').date}.md`), 'utf8');
     assert.match(markdown, /## Reflection/);
-    assert.match(markdown, /\| Reviewed three entries \| \[\[demo\]\] \|\n\n## Reflection/);
+    assert.match(markdown, /\| Reviewed three entries \| \[\[projects\/demo\]\] \|\n\n## Reflection/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

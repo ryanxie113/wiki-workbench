@@ -15,6 +15,11 @@ const escapeAttr = escapeHtml;
 const formatDate = value => value ? value.replaceAll('-', '.') : '日期未记录';
 const priorities = () => state.data.dailyFormat.priorityLabels.map((label, index) => ({ label, priority: index + 1 }));
 const headingSlug = value => String(value || '').toLocaleLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s-]/gu, '').trim().replace(/\s+/g, '-');
+const evidenceTypes = { project: '项目页', weekly: '周报', index: '索引' };
+const evidenceLabel = evidence => `${evidenceTypes[evidence.kind] || '原文'} · ${evidence.sourcePath}:${evidence.line} · ${formatDate(evidence.date)}`;
+const evidenceLink = evidence => evidence
+  ? `<a class="evidence-link" href="${pageHref(evidence.sourcePath, evidence.heading, evidence.line)}">${escapeHtml(evidenceLabel(evidence))} ↗</a>`
+  : '<span class="missing-evidence">来源未定位，请打开原文核对</span>';
 
 function notice(message, error = false) {
   toast.textContent = message;
@@ -55,8 +60,8 @@ function projectCard(project, compact = false) {
 function candidateRow(project, index = 0) {
   const text = project.digest.action[index];
   if (!text) return '';
-  const source = project.digest.actionHeading || '项目记录';
-  return `<div class="candidate-row"><div class="candidate-icon">↗</div><div class="candidate-body"><a class="candidate-title" href="${projectHref(project.path)}">${escapeHtml(project.title)}</a><p>${escapeHtml(text)}</p><a class="evidence-link" href="${pageHref(project.path, source, project.digest.actionLine)}">${escapeHtml(source)} · ${formatDate(project.digest.actionDate)} ↗</a></div><div class="candidate-actions">${state.data.dailyWritable && state.data.today.exists ? priorities().map(({ priority, label }) => `<button type="button" data-action="plan" data-project="${escapeAttr(project.path)}" data-index="${index}" data-priority="${priority}">${escapeHtml(label)}</button>`).join('') : ''}</div></div>`;
+  const evidence = project.digest.actionEvidence?.[index];
+  return `<div class="candidate-row"><div class="candidate-icon">↗</div><div class="candidate-body"><a class="candidate-title" href="${projectHref(project.path)}">${escapeHtml(project.title)}</a><p>${escapeHtml(text)}</p>${evidenceLink(evidence)}</div><div class="candidate-actions">${state.data.dailyWritable && state.data.today.exists ? priorities().map(({ priority, label }) => `<button type="button" data-action="plan" data-project="${escapeAttr(project.path)}" data-index="${index}" data-priority="${priority}" aria-label="采纳为 ${escapeAttr(label)}">${escapeHtml(label)}</button>`).join('') : ''}</div></div>`;
 }
 
 function renderToday() {
@@ -96,10 +101,16 @@ function renderProject(path) {
   const project = state.data.projects.find(item => item.path === path);
   if (!project) return renderNotFound();
   const digest = project.digest;
+  const progress = digest.progress.length
+    ? `<ul class="detail-list">${digest.progress.map((item, index) => `<li>${escapeHtml(item)}<div>${evidenceLink(digest.progressEvidence?.[index])}</div></li>`).join('')}</ul>`
+    : '<p class="muted">项目页暂无可提取的进展段落。</p>';
+  const actions = digest.action.length
+    ? digest.action.map((item, index) => `<div class="action-item"><p>${escapeHtml(item)}</p>${evidenceLink(digest.actionEvidence?.[index])}${state.data.dailyWritable && state.data.today.exists ? `<div class="candidate-actions">${priorities().map(({ priority, label }) => `<button type="button" data-action="plan" data-project="${escapeAttr(project.path)}" data-index="${index}" data-priority="${priority}">采纳为 ${escapeHtml(label)}</button>`).join('')}</div>` : ''}</div>`).join('')
+    : '<p class="muted">项目页暂无可提取的后续事项。</p>';
   main.innerHTML = `<div class="back-row"><a href="#/projects">← 全部项目</a><span> / ${escapeHtml(project.id)}</span></div>
-    <div class="project-hero"><div class="hero-meta"><span class="type-pill">项目</span><span>进展记录至 ${formatDate(digest.progressDate || project.date)}</span></div><h1>${escapeHtml(project.title)}</h1><p>${escapeHtml(digest.goal || '项目目标请查看原文。')}</p><a class="primary-button as-link" href="${pageHref(project.path)}">阅读项目原文 <span>↗</span></a></div>
-    <div class="detail-grid"><section class="panel detail-panel"><div class="panel-title"><div><span class="eyebrow">RECENT RECORD</span><h2>最近进展</h2></div><span class="panel-date">${formatDate(digest.progressDate)}</span></div>${digest.progress.length ? `<ul class="detail-list">${digest.progress.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="muted">项目页暂无可提取的进展段落。</p>'}${digest.progressHeading ? `<a class="evidence-link" href="${pageHref(digest.progressSourcePath || project.path, digest.progressHeading, digest.progressLine)}">查看「${escapeHtml(digest.progressHeading)}」原文 ↗</a>` : ''}</section>
-    <section class="panel detail-panel"><div class="panel-title"><div><span class="eyebrow">NEXT IN DOCUMENT</span><h2>文档中的后续事项</h2></div><span class="panel-date">${formatDate(digest.actionDate)}</span></div>${digest.action.length ? digest.action.map((item, index) => `<div class="action-item"><p>${escapeHtml(item)}</p>${state.data.dailyWritable && state.data.today.exists ? `<div class="candidate-actions">${priorities().map(({ priority, label }) => `<button type="button" data-action="plan" data-project="${escapeAttr(project.path)}" data-index="${index}" data-priority="${priority}">加入 ${escapeHtml(label)}</button>`).join('')}</div>` : ''}</div>`).join('') : '<p class="muted">项目页暂无可提取的后续事项。</p>'}${digest.actionHeading ? `<a class="evidence-link" href="${pageHref(project.path, digest.actionHeading, digest.actionLine)}">查看「${escapeHtml(digest.actionHeading)}」原文 ↗</a>` : ''}${state.data.dailyWritable && !state.data.today.exists ? '<p class="helper-text">在「今日」初始化日报后，可选取一项加入计划。</p>' : ''}</section></div>
+    <div class="project-hero"><div class="hero-meta"><span class="type-pill">项目</span><span>进展记录至 ${formatDate(digest.progressDate || project.date)}</span></div><h1>${escapeHtml(project.title)}</h1><p>${escapeHtml(digest.goal || '项目目标请查看原文。')}</p>${digest.goalEvidence ? evidenceLink(digest.goalEvidence) : ''}<div><a class="primary-button as-link" href="${pageHref(project.path)}">阅读项目原文 <span>↗</span></a></div></div>
+    <div class="detail-grid"><section class="panel detail-panel"><div class="panel-title"><div><span class="eyebrow">RECENT RECORD</span><h2>最近进展</h2></div><span class="panel-date">${formatDate(digest.progressDate)}</span></div>${progress}</section>
+    <section class="panel detail-panel"><div class="panel-title"><div><span class="eyebrow">NEXT IN DOCUMENT</span><h2>文档中的后续事项</h2></div><span class="panel-date">${formatDate(digest.actionDate)}</span></div>${actions}${state.data.dailyWritable && !state.data.today.exists ? '<p class="helper-text">在「今日」初始化日报后，可选取一项加入计划。</p>' : ''}</section></div>
     <div class="source-note"><strong>如何理解这些信息</strong><p>内容来自项目 Markdown；日期表示文档记录的时间，不代表今天仍在执行。计划需由你主动采纳。</p></div>`;
 }
 
@@ -136,7 +147,14 @@ async function renderPage(path, heading = '', line = 0) {
       return `<div class="source-entry">${safe ? `<a href="${pageHref(safe)}">${escapeHtml(item.source)} ↗</a>` : external ? `<a href="${escapeAttr(external)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.source)} ↗</a>` : escapeHtml(item.source)}${status}</div>`;
     }).join('');
     main.innerHTML = `<div class="back-row"><a href="${back}">← ${page.type === 'project' ? '项目概览' : '知识搜索'}</a><span> / 原文</span></div><div class="reader-shell"><aside class="reader-rail"><span class="eyebrow">SOURCE DOCUMENT</span><span class="type-pill">${typeLabels[page.type] || '原文'}</span><h2>${escapeHtml(page.title)}</h2><p class="reader-path">${escapeHtml(page.path)}</p>${page.attributes.updated ? `<div class="reader-meta"><span>页面 updated</span><strong>${formatDate(page.attributes.updated)}</strong></div>` : ''}${page.attributes.confidence ? `<div class="reader-meta"><span>文档置信度</span><strong>${escapeHtml(page.attributes.confidence)}</strong></div>` : ''}${sourceList ? `<div class="rail-divider"></div><span class="mini-label">页面来源</span><div class="source-list">${sourceList}</div>` : ''}<div class="rail-divider"></div><span class="mini-label">页面目录</span><div class="toc">${page.headings.slice(0, 25).map(item => `<button type="button" data-action="jump" data-heading="${escapeAttr(item)}">${escapeHtml(item)}</button>`).join('')}</div></aside><article class="markdown-body">${page.html}</article></div>`;
-    if (heading || line) requestAnimationFrame(() => { const target = [...document.querySelectorAll('.markdown-body [data-heading]')].find(element => line ? Number(element.dataset.line) === line : element.dataset.heading === heading || headingSlug(element.dataset.heading) === headingSlug(heading)); target?.scrollIntoView({ block: 'start' }); });
+    if (heading || line) requestAnimationFrame(() => {
+      const targets = [...document.querySelectorAll('.markdown-body [data-line]')];
+      const target = targets.find(element => line && Number(element.dataset.line) === line)
+        || (line && targets.filter(element => Number(element.dataset.line) < line && Number(element.dataset.lineEnd) >= line)
+          .sort((a, b) => (Number(a.dataset.lineEnd) - Number(a.dataset.line)) - (Number(b.dataset.lineEnd) - Number(b.dataset.line)))[0])
+        || (heading && targets.find(element => element.dataset.heading === heading || headingSlug(element.dataset.heading) === headingSlug(heading)));
+      target?.scrollIntoView({ block: 'start' });
+    });
   } catch (error) { main.innerHTML = `<div class="error-state">${escapeHtml(error.message)}</div>`; }
 }
 
@@ -191,13 +209,18 @@ main.addEventListener('click', async event => {
   }
   if (action === 'plan') {
     const project = state.data.projects.find(item => item.path === control.dataset.project);
-    const text = project?.digest.action[Number(control.dataset.index)];
+    const index = Number(control.dataset.index);
+    const text = project?.digest.action[index];
     if (!text) return notice('项目记录已变化，请刷新页面', true);
+    const evidence = project.digest.actionEvidence?.[index];
+    if (!evidence) return notice('来源未定位，请刷新页面后重试', true);
     const existing = state.data.today.plans.find(plan => plan.priority === Number(control.dataset.priority));
     const label = state.data.dailyFormat.priorityLabels[Number(control.dataset.priority) - 1];
-    if (existing?.text && !confirm(`用这条记录替换当前 ${label}？`)) return;
+    const preview = [`采纳为 ${label} → ${state.data.today.path}`, `任务：${text}`, `来源：${evidenceLabel(evidence)}`];
+    if (existing?.text) preview.push(`将覆盖：${existing.text}`);
+    if (!confirm(preview.join('\n'))) return;
     try {
-      const { today } = await api('/api/daily', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workbench-Request': '1' }, body: JSON.stringify({ action: 'plan', projectPath: project.path, priority: Number(control.dataset.priority), text }) });
+      const { today } = await api('/api/daily', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workbench-Request': '1' }, body: JSON.stringify({ action: 'plan', projectPath: project.path, priority: Number(control.dataset.priority), text, sourceLine: evidence.line, replace: Boolean(existing?.text) }) });
       state.data.today = today; renderRoute(); notice(`已加入今日 ${label}`);
     } catch (error) { notice(error.message, true); }
   }
