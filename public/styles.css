@@ -8,6 +8,11 @@
 
 [hidden]{display:none!important}
 
+.capture-panel .capture-project-filter{width:100%;margin-top:9px;border:1px solid #e2e9e3;background:#fff;border-radius:7px;padding:9px;font-size:11px;outline:0;color:#253e34}
+.capture-panel .capture-project-filter:focus{border-color:#58a67a;box-shadow:0 0 0 3px #70b78b1d}
+.project-more{display:block;margin:24px auto 0;border:1px solid #d7e6db;background:#fff;color:#347957;border-radius:8px;padding:11px 18px;font-size:12px;font-weight:600}
+.project-more:hover{background:#ebf7ee}
+
 .markdown-body pre{background:#1e3131;color:#dceae4;border-radius:9px;margin:19px 0}
 .markdown-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:16px 0}
 .markdown-body .task-list-item-checkbox{margin-right:8px;accent-color:#278355}

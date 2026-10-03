@@ -9,6 +9,7 @@ import { normalizeDailyFormat } from '../lib/daily-format.mjs';
 import { normalizeProjectFormat } from '../lib/project-format.mjs';
 import { hostAllowed } from '../lib/http.mjs';
 import { loadLibrary, parseFrontmatter, readAllowedFile, safeVaultPath, searchLibrary } from '../lib/wiki.mjs';
+import { renderMarkdownPage } from '../lib/render.mjs';
 import { createTodayFromTemplate, parseToday, updateToday, zonedNow } from '../lib/daily.mjs';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,6 +161,49 @@ test('项目格式配置拒绝错误字段和重复标题', async () => {
   assert.throws(() => normalizeProjectFormat({ actionHeadings: ['TODO', 'todo'] }), /不能重复/);
   assert.throws(() => normalizeProjectFormat({ progressHeadings: ['Line\nbreak'] }), /progressHeadings/);
   await assert.rejects(resolveConfig(['--vault', demoVault, '--project-format', 'missing-project-format.json'], {}, appDir), /项目格式配置无法读取/);
+  await assert.rejects(resolveConfig(['--vault', demoVault, '--project-dir', 'missing-projects'], {}, appDir), /项目目录不存在/);
+});
+
+test('非默认目录的原有 Wiki 可核对来源、采纳任务并记录进展', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-adapted-vault-'));
+  try {
+    await mkdir(path.join(directory, 'docs/initiatives'), { recursive: true });
+    await mkdir(path.join(directory, 'daily'));
+    const projectPath = 'docs/initiatives/orchard.md';
+    const projectText = '# Orchard\n\n## Mission\nGrow healthy seedlings.\n\n## Milestones\n- Soil samples recorded\n\n## To deliver\n- Check moisture\n\n[Field notes](../field.md)\n';
+    await writeFile(path.join(directory, projectPath), projectText);
+    await writeFile(path.join(directory, 'docs/field.md'), '# Field notes\n');
+    await writeFile(path.join(directory, 'docs/sprint-review.md'), '---\ntype: insight\nupdated: 2026-02-02\n---\n# Sprint review\n\n## Next week\n- Check seedlings\n\n### orchard\n- New growth observed\n');
+    await writeFile(path.join(directory, 'daily/_template.md'), await readFile(path.join(appDir, 'examples/daily-template.en.md'), 'utf8'));
+    const config = await resolveConfig([
+      '--vault', directory, '--content-dir', 'docs', '--project-dir', 'docs/initiatives',
+      '--project-format', path.join(appDir, 'examples/project-format.en.json'),
+      '--daily-format', path.join(appDir, 'examples/daily-format.en.json'),
+      '--write-daily', '--time-zone', 'UTC'
+    ], {}, appDir);
+    const library = await loadLibrary(directory, config);
+    const project = library.byPath.get(projectPath);
+    assert.equal(project.type, 'project');
+    assert.equal(project.digest.goal, 'Grow healthy seedlings.');
+    assert.equal(project.digest.progress[0], 'New growth observed');
+    assert.equal(project.digest.progressEvidence[0].sourcePath, 'docs/sprint-review.md');
+    assert.equal(project.digest.actionEvidence[0].sourcePath, projectPath);
+    assert.match(renderMarkdownPage(project, library), /href="#\/page\/docs%2Ffield\.md"/);
+    assert.ok(searchLibrary(library, 'soil samples').some(page => page.path === projectPath));
+
+    await updateToday(directory, 'init', {}, library, config);
+    await updateToday(directory, 'plan', {
+      priority: 1, projectPath, text: project.digest.action[0], sourceLine: project.digest.actionEvidence[0].line
+    }, library, config);
+    const today = await updateToday(directory, 'record', { projectPath, text: 'Checked moisture' }, library, config);
+    assert.match(today.plans[0].text, /Check moisture \[\[docs\/initiatives\/orchard\]\]/);
+    assert.equal(today.records[0].text, 'Checked moisture');
+    assert.equal(await readFile(path.join(directory, projectPath), 'utf8'), projectText);
+
+    const changedRules = await loadLibrary(directory, { ...config, projectDirs: [] }, library);
+    assert.equal(changedRules.byPath.get(projectPath).type, 'other');
+    assert.notEqual(changedRules.cacheKey, library.cacheKey);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test('YAML 列表、路径限制和命令参数', () => {
@@ -174,6 +218,7 @@ test('YAML 列表、路径限制和命令参数', () => {
   assert.equal(config.contentDir, 'projects');
   assert.equal(config.writeDaily, true);
   assert.deepEqual(config.excludes, ['private']);
+  assert.throws(() => parseArguments(['--project-dir', '../outside'], {}, appDir));
   assert.throws(() => parseArguments(['--content-dir', '../outside'], {}, appDir));
   assert.throws(() => normalizeDailyFormat({ priorityLabels: ['High', 'High', 'Low'] }), /不能重复/);
   assert.equal(hostAllowed('127.0.0.1:4173', 4173), true);

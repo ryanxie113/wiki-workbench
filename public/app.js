@@ -1,4 +1,6 @@
-const state = { data: null, route: '', searchRequest: 0 };
+const PROJECT_BATCH_SIZE = 60;
+const CAPTURE_OPTION_LIMIT = 50;
+const state = { data: null, route: '', searchRequest: 0, projectFilter: '', projectVisible: PROJECT_BATCH_SIZE };
 const main = document.querySelector('#main');
 const toast = document.querySelector('#toast');
 
@@ -57,6 +59,16 @@ function projectCard(project, compact = false) {
   return `<a class="project-card ${compact ? 'compact' : ''}" href="${projectHref(project.path)}"><div class="card-top"><span class="type-pill">项目</span><span class="card-date">记录至 ${formatDate(digest.progressDate || project.date)}</span></div><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(summary)}</p><div class="card-bottom"><span>${digest.action.length ? '有后续记录' : '查看进展'}</span><span class="arrow">↗</span></div></a>`;
 }
 
+function matchingProjects(query) {
+  const term = query.trim().toLocaleLowerCase();
+  return term ? state.data.projects.filter(project => `${project.title} ${project.id} ${project.path}`.toLocaleLowerCase().includes(term)) : state.data.projects;
+}
+
+function captureProjectOptions(query = '') {
+  return matchingProjects(query).slice(0, CAPTURE_OPTION_LIMIT).map(project =>
+    `<option value="${escapeAttr(project.path)}">${escapeHtml(project.title)} · ${escapeHtml(project.path)}</option>`).join('');
+}
+
 function candidateRow(project, index = 0) {
   const text = project.digest.action[index];
   if (!text) return '';
@@ -84,7 +96,7 @@ function renderToday() {
   main.innerHTML = `${sectionHeader('YOUR WORKSPACE', '从已有记录安排今天', '先打开依据核对，再手动采纳后续事项，并把实际进展记入日报。')}
     <div class="overview-strip"><span><strong>${projects.length}</strong> 个项目页面</span><i></i><span><strong>${Object.values(pageCounts).reduce((a, b) => a + b, 0)}</strong> 篇 Wiki 页面</span><i></i><a href="#/unindexed"><strong>${unindexed.length}</strong> 篇尚未纳入根索引 ↗</a></div>
     <div class="today-grid"><section class="panel plan-panel"><div class="panel-title"><div><span class="eyebrow">01 / FOCUS</span><h2>${escapeHtml(state.data.dailyFormat.planHeading)}</h2></div><span class="panel-date">${formatDate(today.date)}</span></div>${today.exists ? `<div class="plan-list">${plans}</div><a class="text-link" href="${pageHref(today.path)}">查看今日日报 ↗</a>` : `<div class="empty-plan"><div class="empty-icon">◌</div><h3>今天还没有日报</h3><p>从现有模板建立空白日报，然后手动选取任务。</p><button class="primary-button" data-action="init">初始化今日日报 <span>↗</span></button></div>`}</section>
-    <section class="panel capture-panel"><div class="panel-title"><div><span class="eyebrow">02 / CAPTURE</span><h2>随手记录</h2></div><span class="small-badge">写入 ${escapeHtml(state.data.dailyDir)}/</span></div><form id="capture-form"><label for="capture-text">今天推进了什么？</label><textarea id="capture-text" name="text" maxlength="400" placeholder="一句话记录具体进展或卡点…" ${today.exists ? '' : 'disabled'} required></textarea><div class="form-row"><select name="projectPath" aria-label="关联项目" ${today.exists ? '' : 'disabled'} required><option value="">选择关联项目</option>${projects.map(project => `<option value="${escapeAttr(project.path)}">${escapeHtml(project.title)}</option>`).join('')}</select><button type="submit" ${today.exists ? '' : 'disabled'}>记录 ↗</button></div></form><div class="recent-records"><span class="mini-label">${escapeHtml(state.data.dailyFormat.timelineHeading)}</span>${records}</div></section></div>
+    <section class="panel capture-panel"><div class="panel-title"><div><span class="eyebrow">02 / CAPTURE</span><h2>随手记录</h2></div><span class="small-badge">写入 ${escapeHtml(state.data.dailyDir)}/</span></div><form id="capture-form"><label for="capture-text">今天推进了什么？</label><textarea id="capture-text" name="text" maxlength="400" placeholder="一句话记录具体进展或卡点…" ${today.exists ? '' : 'disabled'} required></textarea><input id="capture-project-filter" class="capture-project-filter" type="search" placeholder="输入项目名称或路径查找…" aria-label="筛选关联项目" ${today.exists ? '' : 'disabled'} /><div class="form-row"><select id="capture-project-list" name="projectPath" aria-label="关联项目" ${today.exists ? '' : 'disabled'} required><option value="">选择关联项目（最多显示 50 项）</option>${captureProjectOptions()}</select><button type="submit" ${today.exists ? '' : 'disabled'}>记录 ↗</button></div></form><div class="recent-records"><span class="mini-label">${escapeHtml(state.data.dailyFormat.timelineHeading)}</span>${records}</div></section></div>
     ${weeklyPlan ? `<section class="section-block"><div class="section-title"><div><span class="eyebrow">LATEST WEEKLY NOTE</span><h2>最近周报的下周计划</h2><p>记录于 ${formatDate(weeklyPlan.date)}，仅作回看与核对。</p></div><a href="${pageHref(weeklyPlan.path, weeklyPlan.heading, weeklyPlan.line)}">查看周报原文 ↗</a></div><div class="weekly-plan">${weeklyPlan.items.map((item, index) => `<div><span>${String(index + 1).padStart(2, '0')}</span><p>${escapeHtml(item)}</p></div>`).join('')}</div></section>` : ''}
     <section class="section-block"><div class="section-title"><div><span class="eyebrow">FROM YOUR PROJECT NOTES</span><h2>项目页中的后续记录</h2><p>部分记录早于最近周报。请核对日期，再决定是否加入今天。</p></div><a href="#/projects">浏览全部项目 ↗</a></div><div class="candidate-list">${candidates.length ? candidates.map(project => candidateRow(project)).join('') : '<div class="empty-inline">项目页尚未记录下一步。</div>'}</div></section>
     <section class="section-block"><div class="section-title"><div><span class="eyebrow">QUICK ACCESS</span><h2>最近的知识记录</h2></div><a href="#/search">搜索全部内容 ↗</a></div><div class="recent-grid">${state.data.recent.slice(0, 4).map(page => `<a class="recent-card" href="${pageHref(page.path)}"><span class="type-pill">${typeLabels[page.type] || '页面'}</span><h3>${escapeHtml(page.title)}</h3><small>${formatDate(page.date)}</small><span class="arrow">↗</span></a>`).join('')}</div></section>`;
@@ -93,8 +105,19 @@ function renderToday() {
 function renderProjects() {
   const projects = state.data.projects;
   main.innerHTML = `${sectionHeader('PROJECTS', '项目脉络', '按最近记录排序。进展和后续事项均保留原文日期，供你核对。')}
-    <div class="projects-tools"><span>共 ${projects.length} 个项目</span><input id="project-filter" type="search" placeholder="筛选项目名称…" aria-label="筛选项目" /></div>
-    <div class="project-grid" id="project-grid">${projects.map(project => projectCard(project)).join('')}</div>`;
+    <div class="projects-tools"><span id="project-count">共 ${projects.length} 个项目</span><input id="project-filter" type="search" value="${escapeAttr(state.projectFilter)}" placeholder="筛选项目名称或路径…" aria-label="筛选项目" /></div>
+    <div class="project-grid" id="project-grid"></div><button type="button" class="project-more" data-action="project-more" hidden>显示更多项目</button>`;
+  renderProjectList();
+}
+
+function renderProjectList() {
+  const projects = matchingProjects(state.projectFilter);
+  const visible = projects.slice(0, state.projectVisible);
+  document.querySelector('#project-count').textContent = `匹配 ${projects.length} 个项目 · 显示 ${visible.length} 个`;
+  document.querySelector('#project-grid').innerHTML = visible.map(project => projectCard(project)).join('') || '<div class="empty-inline">没有匹配的项目。</div>';
+  const more = document.querySelector('[data-action="project-more"]');
+  more.hidden = visible.length >= projects.length;
+  more.textContent = `显示更多项目（剩余 ${projects.length - visible.length} 个）`;
 }
 
 function renderProject(path) {
@@ -203,6 +226,11 @@ main.addEventListener('click', async event => {
   const control = event.target.closest('[data-action]');
   if (!control) return;
   const action = control.dataset.action;
+  if (action === 'project-more') {
+    state.projectVisible += PROJECT_BATCH_SIZE;
+    renderProjectList();
+    return;
+  }
   if (action === 'jump') {
     [...document.querySelectorAll('.markdown-body [data-heading]')].find(element => element.dataset.heading === control.dataset.heading)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
@@ -247,9 +275,17 @@ main.addEventListener('submit', async event => {
   }
 });
 main.addEventListener('input', event => {
-  if (event.target.id !== 'project-filter') return;
-  const query = event.target.value.trim().toLocaleLowerCase();
-  document.querySelector('#project-grid').innerHTML = state.data.projects.filter(project => `${project.title} ${project.id}`.toLocaleLowerCase().includes(query)).map(project => projectCard(project)).join('') || '<div class="empty-inline">没有匹配的项目。</div>';
+  if (event.target.id === 'project-filter') {
+    state.projectFilter = event.target.value;
+    state.projectVisible = PROJECT_BATCH_SIZE;
+    renderProjectList();
+  }
+  if (event.target.id === 'capture-project-filter') {
+    const select = document.querySelector('#capture-project-list');
+    const matches = matchingProjects(event.target.value);
+    select.innerHTML = `<option value="">选择关联项目（匹配 ${matches.length} 项）</option>${captureProjectOptions(event.target.value)}`;
+    if (matches.length === 1) select.value = matches[0].path;
+  }
 });
 
 refresh().then(renderRoute).catch(error => { main.innerHTML = `<div class="error-state">无法读取 Wiki：${escapeHtml(error.message)}</div>`; });

@@ -51,6 +51,8 @@ npm start -- --vault /absolute/path/to/vault --content-dir wiki --daily-dir dail
 
 `--content-dir` 限定主要扫描目录，同时仍读取日报目录与根索引。可重复使用 `--exclude relative/path` 排除目录。缺少索引时不显示“未入索引”提示。
 
+项目页若不在 `projects/`，且没有 `type: project`，可重复使用 `--project-dir` 指定资料库内的项目目录。例如 `--project-dir docs/initiatives` 会识别该目录及子目录中的 Markdown 项目页，不需要修改原文。
+
 只有在确认日报模板适合自己时才启用写入：
 
 ```bash
@@ -77,7 +79,9 @@ npm start -- --vault /absolute/path/to/vault --write-daily --daily-format exampl
 
 ## 开发
 
-`npm run bench` 会在临时目录生成 600 篇虚构笔记，测量首次扫描、连续刷新和 100 次搜索；结束后自动清理。结果仅用于比较同一机器上的版本，不代表真实资料库的绝对耗时。
+`npm run bench` 会在临时目录生成 600 篇虚构笔记，测量首次扫描、连续刷新、100 次搜索、单篇原文读取与渲染，以及文件增删改后的刷新，并核对刷新结果；结束后自动清理。使用 `npm run bench -- --pages 5000` 可复现更大资料库的测试。结果仅用于比较同一机器上的版本，不代表真实资料库的绝对耗时。
+
+项目列表每次显示 60 项，可按名称或路径筛选后继续加载；日报记录表单也通过搜索选择关联项目，避免大资料库一次生成数千个页面节点。
 
 ```bash
 npm test
