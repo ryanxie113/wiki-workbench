@@ -15,11 +15,16 @@
         <nav aria-label="主导航">
           <a class="nav-link" data-nav="today" href="#/today"><span class="nav-icon">◫</span> 首页</a>
           <a class="nav-link" data-nav="projects" href="#/projects"><span class="nav-icon">▦</span> 项目</a>
+          <a class="nav-link" data-nav="actions" href="#/actions"><span class="nav-icon">☷</span> 行动审阅</a>
+          <a class="nav-link" data-nav="weekly" href="#/weekly"><span class="nav-icon">◷</span> 每周回顾</a>
+          <a class="nav-link" data-nav="aihot" href="#/aihot"><span class="nav-icon">✦</span> AI 行业日报</a>
+          <a class="nav-link" data-nav="inbox" href="#/inbox"><span class="nav-icon">▤</span> 来源收件箱</a>
+          <a class="nav-link" data-nav="x" href="#/x"><span class="nav-icon">𝕏</span> 开发者动态</a>
           <a class="nav-link" data-nav="search" href="#/search"><span class="nav-icon">⌕</span> 知识搜索</a>
           <a class="nav-link" data-nav="overview" id="nav-overview" href="#/today" hidden><span class="nav-icon">◈</span> 知识版图</a>
         </nav>
         <div class="sidebar-bottom">
-          <div class="sidebar-note"><span class="pulse-dot"></span> 本地资料库已连接 <small id="vault-status">默认只读</small></div>
+          <a class="sidebar-note" href="#/vault"><span class="pulse-dot"></span><strong id="vault-name">正在读取资料库</strong><small id="vault-status">默认只读</small><small id="vault-path"></small></a>
           <a class="side-index" id="side-index" href="#/today" hidden>打开全局索引 <span>↗</span></a>
         </div>
       </aside>

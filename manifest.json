@@ -1,0 +1,9 @@
+{
+  "id": "wiki-workbench-companion",
+  "name": "Wiki Workbench Companion",
+  "version": "0.1.0",
+  "minAppVersion": "1.7.2",
+  "description": "Review project progress and action candidates with links to their Markdown sources.",
+  "author": "Wiki Workbench contributors",
+  "isDesktopOnly": true
+}

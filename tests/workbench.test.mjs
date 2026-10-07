@@ -11,9 +11,87 @@ import { hostAllowed } from '../lib/http.mjs';
 import { loadLibrary, parseFrontmatter, readAllowedFile, safeVaultPath, searchLibrary } from '../lib/wiki.mjs';
 import { renderMarkdownPage } from '../lib/render.mjs';
 import { createTodayFromTemplate, parseToday, updateToday, zonedNow } from '../lib/daily.mjs';
+import { actionId, buildActionInbox } from '../lib/actions.mjs';
+import { appendOutcome, readOutcomes } from '../lib/action-outcomes.mjs';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const demoVault = path.join(appDir, 'examples/demo-vault');
+
+test('行动队列从原文生成，并从日报识别采纳和完成状态', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-actions-'));
+  try {
+    await mkdir(path.join(directory, 'projects'));
+    await mkdir(path.join(directory, 'daily'));
+    await writeFile(path.join(directory, 'projects/demo.md'), '# Demo\n\n## Next steps 2026-02-01\n- Check moisture\n\n## Progress 2026-02-03\n- Seedlings inspected\n');
+    const dailyFile = path.join(directory, 'daily/2026-02-04.md');
+    let library = await loadLibrary(directory);
+    let actions = buildActionInbox(library);
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0].status, 'pending');
+    assert.equal(actions[0].needsReview, true);
+    assert.equal(actions[0].evidence.sourcePath, 'projects/demo.md');
+    assert.equal(actions[0].id, actionId(actions[0].projectPath, actions[0].evidence, actions[0].text));
+    const originalId = actions[0].id;
+    await writeFile(path.join(directory, 'projects/demo.md'), '# Demo\n\nA new introduction.\n\n## Next steps 2026-02-01\n- Check moisture\n\n## Progress 2026-02-03\n- Seedlings inspected\n');
+    library = await loadLibrary(directory, {}, library);
+    actions = buildActionInbox(library);
+    assert.equal(actions[0].id, originalId);
+    assert.equal(actions[0].evidence.line, 6);
+
+    await writeFile(dailyFile, '# Daily\n\n## 今日计划\n- [ ] P1: Check moisture [[projects/demo]]\n- [ ] P2:\n- [ ] P3:\n');
+    library = await loadLibrary(directory, {}, library);
+    actions = buildActionInbox(library);
+    assert.equal(actions[0].status, 'planned');
+    assert.deepEqual(actions[0].adoption, { date: '2026-02-04', path: 'daily/2026-02-04.md', priority: 1, done: false });
+
+    await writeFile(dailyFile, '# Daily\n\n## 今日计划\n- [x] P1: Check moisture [[projects/demo]]\n- [ ] P2:\n- [ ] P3:\n');
+    library = await loadLibrary(directory, {}, library);
+    actions = buildActionInbox(library);
+    assert.equal(actions[0].status, 'completed');
+    assert.equal(actions[0].adoption.done, true);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('最近周报的计划逐条进入审阅队列，保留原文行号并可匹配日报', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-weekly-actions-'));
+  try {
+    await mkdir(path.join(directory, 'insights'));
+    await mkdir(path.join(directory, 'projects'));
+    await mkdir(path.join(directory, 'daily'));
+    await writeFile(path.join(directory, 'projects/demo.md'), '# Demo\n');
+    await writeFile(path.join(directory, 'insights/2026-02-04-weekly-summary.md'), '---\ntype: insight\nupdated: 2026-02-04\n---\n# Weekly\n\n## 下周计划\n\n1. Check moisture\n2. Inspect seedlings\n');
+    let library = await loadLibrary(directory);
+    assert.deepEqual(library.weeklyActions.map(item => item.evidence.line), [9, 10]);
+    let weekly = buildActionInbox(library).filter(item => item.evidence.kind === 'weekly');
+    assert.equal(weekly.length, 2);
+    assert.equal(weekly[0].status, 'pending');
+    await writeFile(path.join(directory, 'daily/2026-02-05.md'), '# Daily\n\n## 今日计划\n- [ ] P1: Check moisture [[projects/demo]]\n- [ ] P2:\n- [ ] P3:\n');
+    library = await loadLibrary(directory, {}, library);
+    weekly = buildActionInbox(library).filter(item => item.evidence.kind === 'weekly');
+    assert.equal(weekly[0].status, 'planned');
+    assert.equal(weekly[0].adoption.projectPath, 'projects/demo.md');
+    await writeFile(path.join(directory, 'insights/2026-02-11-weekly-summary.md'), '---\ntype: insight\nupdated: 2026-02-11\n---\n# Weekly\n\n## 下周计划\n\n1. Review harvest\n');
+    library = await loadLibrary(directory, {}, library);
+    weekly = buildActionInbox(library).filter(item => item.evidence.kind === 'weekly');
+    assert.equal(weekly.length, 2);
+    assert.equal(weekly.find(item => item.text === 'Check moisture').status, 'planned');
+    assert.equal(weekly.find(item => item.text === 'Review harvest').status, 'pending');
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('已采纳事项的结果追加保存，并可跨浏览器读取', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'workbench-outcomes-'));
+  try {
+    const vaultId = '0123456789abcdef';
+    const candidate = { id: 'action-1', text: 'Check moisture', evidence: { sourcePath: 'projects/demo.md', line: 4 }, adoption: { path: 'daily/2026-02-05.md' } };
+    await appendOutcome(vaultId, candidate, 'deferred', '等待湿度计', directory);
+    await appendOutcome(vaultId, candidate, 'completed', '已核对', directory);
+    const events = await readOutcomes(vaultId, directory);
+    assert.deepEqual(events.map(item => item.status), ['deferred', 'completed']);
+    assert.equal(events[0].evidence.line, 4);
+    assert.throws(() => appendOutcome(vaultId, candidate, 'invalidated', '', directory), /请填写/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test('虚构资料库可独立运行：项目摘要、来源、搜索和索引', async () => {
   const library = await loadLibrary(demoVault);
@@ -249,8 +327,16 @@ test('日报默认拒绝写入；显式启用后按指定时区与模板创建',
     await assert.rejects(updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 9 }, library, config), /已有内容/);
     assert.equal(await readFile(dailyFile, 'utf8'), beforeRejectedReplace);
     await updateToday(directory, 'plan', { priority: 1, projectPath, text: '观察土壤', sourceLine: 9, replace: true }, library, config);
+    library.weeklyActions = [{ text: '检查周报任务', evidence: { sourcePath: 'insights/weekly-summary.md', line: 12 } }];
+    await assert.rejects(updateToday(directory, 'plan', { priority: 2, projectPath, text: '检查周报任务', sourceLine: 13, sourcePath: 'insights/weekly-summary.md', sourceKind: 'weekly' }, library, config), /周报记录已变化/);
+    await updateToday(directory, 'plan', { priority: 2, projectPath, text: '检查周报任务', sourceLine: 12, sourcePath: 'insights/weekly-summary.md', sourceKind: 'weekly' }, library, config);
+    await assert.rejects(updateToday(directory, 'complete', { priority: 2, projectPath, text: '其他事项' }, library, config), /计划已变化/);
+    const completed = await updateToday(directory, 'complete', { priority: 2, projectPath, text: '检查周报任务' }, library, config);
+    assert.equal(completed.plans[1].done, true);
+    assert.equal((await updateToday(directory, 'complete', { priority: 2, projectPath, text: '检查周报任务' }, library, config)).plans[1].done, true);
     const updated = await updateToday(directory, 'record', { projectPath, text: '已记录观察结果' }, library, config);
     assert.equal(updated.plans[0].text, '观察土壤 [[projects/demo]]');
+    assert.equal(updated.plans[1].text, '检查周报任务 [[projects/demo]]');
     assert.equal(updated.records[0].tag, '[[projects/demo]]');
     const markdown = await readFile(dailyFile, 'utf8');
     assert.equal(parseToday(markdown, date).records.length, 1);

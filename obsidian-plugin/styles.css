@@ -1,0 +1,19 @@
+.wwb-root { padding: 18px 22px 32px; overflow: auto; }
+.wwb-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.wwb-header small { color: var(--text-muted); font-size: 10px; letter-spacing: .14em; }
+.wwb-header h2 { margin: 5px 0 15px; }
+.wwb-refresh, .wwb-more { cursor: pointer; }
+.wwb-scope { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.wwb-tabs { display: flex; gap: 7px; margin: 18px 0; }
+.wwb-tabs button.is-active { background: var(--interactive-accent); color: var(--text-on-accent); }
+.wwb-muted { color: var(--text-muted); font-size: var(--font-ui-smaller); line-height: 1.6; }
+.wwb-card { border: 1px solid var(--background-modifier-border); border-radius: 10px; padding: 15px 17px; margin: 10px 0; background: var(--background-primary); }
+.wwb-card-heading { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.wwb-card p { margin: 9px 0; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wwb-status { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.wwb-warning { display: block; color: var(--text-warning); margin: 5px 0; }
+.wwb-source { display: block; max-width: 100%; border: 0; padding: 3px 0; margin: 5px 0 0; background: transparent; box-shadow: none; color: var(--text-accent); text-align: left; font-size: var(--font-ui-smaller); white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
+.wwb-source:hover { text-decoration: underline; }
+.wwb-empty, .wwb-error { padding: 20px 0; color: var(--text-muted); }
+.wwb-error { color: var(--text-error); }
+.wwb-more { margin-top: 15px; }
