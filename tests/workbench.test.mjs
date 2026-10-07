@@ -366,6 +366,6 @@ test('自定义日报标题和优先级可写入，不依赖固定的阅读段�
     assert.equal(updated.records[0].text, 'Reviewed three entries');
     const markdown = await readFile(path.join(directory, 'daily', `${zonedNow('UTC').date}.md`), 'utf8');
     assert.match(markdown, /## Reflection/);
-    assert.match(markdown, /\| Reviewed three entries \| \[\[projects\/demo\]\] \|\n\n## Reflection/);
+    assert.match(markdown, /\| Reviewed three entries \| \[\[projects\/demo\]\] \|\r?\n\r?\n## Reflection/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
