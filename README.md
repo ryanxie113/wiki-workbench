@@ -46,6 +46,8 @@ RSS/Atom 由本地服务按需读取，最多保存 30 个订阅源，每个源�
 需要 Node.js 20 或更新版本。
 
 ```bash
+git clone https://github.com/ryanxie113/wiki-workbench.git
+cd wiki-workbench
 npm ci
 npm start
 ```
