@@ -113,6 +113,7 @@ test('旧浏览器订阅迁入资料库状态后可在另一个浏览器读取',
         persisted = { version: 1, vaultId: 'demo', data: body.data };
         return { ok: true, json: async () => ({ workspaceState: persisted }) };
       }
+      if (String(input) === '/api/feeds/read') return { ok: true, json: async () => ({ title: 'Feed', items: [] }) };
       throw new Error(`Unexpected request: ${input}`);
     };
     window.eval(script);
@@ -125,8 +126,8 @@ test('旧浏览器订阅迁入资料库状态后可在另一个浏览器读取',
   try {
     await waitFor(() => second.window.document.querySelector('#workspace-import'));
     second.window.location.hash = '#/inbox';
-    second.window.dispatchEvent(new second.window.HashChangeEvent('hashchange'));
     await waitFor(() => second.window.document.querySelector('[data-action="inbox-remove-feed"]'));
-    assert.match(second.window.document.querySelector('#main').textContent, /example.com\/feed.xml/);
+    await waitFor(() => second.window.document.querySelector('[data-action="inbox-refresh"]')?.disabled === false);
+    assert.equal(second.window.document.querySelector('[data-action="inbox-remove-feed"]').dataset.url, 'https://example.com/feed.xml');
   } finally { second.window.close(); }
 });
